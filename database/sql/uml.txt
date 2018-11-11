@@ -1,0 +1,254 @@
+@startuml
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class ccChecker {
+  cci driver.ColumnConverter
+  want int
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class NamedArg {
+  _Named_Fields_Required struct { }
+  Name string
+  Value interface  { }
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class TxOptions {
+  Isolation IsolationLevel
+  ReadOnly bool
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class NullString {
+  String string
+  Valid bool
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class NullInt64 {
+  Int64 int64
+  Valid bool
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class NullFloat64 {
+  Float64 float64
+  Valid bool
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class NullBool {
+  Bool bool
+  Valid bool
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class Out {
+  _Named_Fields_Required struct { }
+  Dest interface  { }
+  In bool
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class DB {
+  waitDuration int64
+  connector driver.Connector
+  numClosed uint64
+  mu sync.Mutex
+  freeConn []*driverConn
+  connRequests map[uint64]chan connRequest
+  nextRequest uint64
+  numOpen int
+  openerCh chan struct { }
+  resetterCh chan *driverConn
+  closed bool
+  dep map[finalCloser]depSet
+  lastPut map[*driverConn]string
+  maxIdle int
+  maxOpen int
+  maxLifetime time.Duration
+  cleanerCh chan struct { }
+  waitCount int64
+  maxIdleClosed int64
+  maxLifetimeClosed int64
+  connCreateNum int64
+  stop func()
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class driverConn {
+  db *DB
+  createdAt time.Time
+  sync.Mutex
+  ci driver.Conn
+  closed bool
+  finalClosed bool
+  openStmt map[*driverStmt]bool
+  lastErr error
+  inUse bool
+  onPut []func()
+  dbmuClosed bool
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class driverStmt {
+  sync.Locker
+  si driver.Stmt
+  closed bool
+  closeErr error
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class dsnConnector {
+  dsn string
+  driver driver.Driver
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class DBStats {
+  MaxIdleClosed int64
+  MaxLifetimeClosed int64
+  MaxOpenConnections int
+  OpenConnections int
+  InUse int
+  Idle int
+  WaitCount int64
+  WaitDuration time.Duration
+  ConnCreateNum int64
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class connRequest {
+  conn *driverConn
+  err error
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class Conn {
+  db *DB
+  closemu sync.RWMutex
+  dc *driverConn
+  done int32
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class Tx {
+  db *DB
+  closemu sync.RWMutex
+  dc *driverConn
+  txi driver.Tx
+  releaseConn func(error)
+  done int32
+  stmts struct {   sync.Mutex   v []*Stmt }
+  cancel func()
+  ctx context.Context
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class connStmt {
+  dc *driverConn
+  ds *driverStmt
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class Stmt {
+  db *DB
+  query string
+  stickyErr error
+  closemu sync.RWMutex
+  cg stmtConnGrabber
+  cgds *driverStmt
+  parentStmt *Stmt
+  mu sync.Mutex
+  closed bool
+  css []connStmt
+  lastNumClosed uint64
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class Rows {
+  dc *driverConn
+  releaseConn func(error)
+  rowsi driver.Rows
+  cancel func()
+  closeStmt *driverStmt
+  closemu sync.RWMutex
+  closed bool
+  lasterr error
+  lastcols []driver.Value
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class ColumnType {
+  name string
+  hasNullable bool
+  hasLength bool
+  hasPrecisionScale bool
+  nullable bool
+  length int64
+  databaseType string
+  precision int64
+  scale int64
+  scanType reflect.Type
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class Row {
+  err error
+  rows *Rows
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ class driverResult {
+  sync.Locker
+  resi driver.Result
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ interface Scanner  {
+  Scan(src interface  { })error
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ interface finalCloser  {
+  finalClose()error
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ interface stmtConnGrabber  {
+  grabConn(context.Context)(*driverConn,releaseConn,error)
+  txCtx()context.Context
+} 
+}
+namespace github.com\\tfbrother\\go\\src\\database\\sql {
+ interface Result  {
+  LastInsertId()(int64,error)
+  RowsAffected()(int64,error)
+} 
+}
+github.com\\tfbrother\\go\\src\\database\\sql.DB ---> "*" github.com\\tfbrother\\go\\src\\database\\sql.driverConn : freeConn
+github.com\\tfbrother\\go\\src\\database\\sql.driverConn ---> github.com\\tfbrother\\go\\src\\database\\sql.DB : db
+github.com\\tfbrother\\go\\src\\database\\sql.connRequest ---> github.com\\tfbrother\\go\\src\\database\\sql.driverConn : conn
+github.com\\tfbrother\\go\\src\\database\\sql.Conn ---> github.com\\tfbrother\\go\\src\\database\\sql.DB : db
+github.com\\tfbrother\\go\\src\\database\\sql.Conn ---> github.com\\tfbrother\\go\\src\\database\\sql.driverConn : dc
+github.com\\tfbrother\\go\\src\\database\\sql.Tx ---> github.com\\tfbrother\\go\\src\\database\\sql.DB : db
+github.com\\tfbrother\\go\\src\\database\\sql.Tx ---> github.com\\tfbrother\\go\\src\\database\\sql.driverConn : dc
+github.com\\tfbrother\\go\\src\\database\\sql.connStmt ---> github.com\\tfbrother\\go\\src\\database\\sql.driverConn : dc
+github.com\\tfbrother\\go\\src\\database\\sql.connStmt ---> github.com\\tfbrother\\go\\src\\database\\sql.driverStmt : ds
+github.com\\tfbrother\\go\\src\\database\\sql.Stmt ---> github.com\\tfbrother\\go\\src\\database\\sql.DB : db
+github.com\\tfbrother\\go\\src\\database\\sql.Stmt ---> github.com\\tfbrother\\go\\src\\database\\sql.driverStmt : cgds
+github.com\\tfbrother\\go\\src\\database\\sql.Stmt ---> github.com\\tfbrother\\go\\src\\database\\sql.Stmt : parentStmt
+github.com\\tfbrother\\go\\src\\database\\sql.Stmt ---> "*" github.com\\tfbrother\\go\\src\\database\\sql.connStmt : css
+github.com\\tfbrother\\go\\src\\database\\sql.Rows ---> github.com\\tfbrother\\go\\src\\database\\sql.driverConn : dc
+github.com\\tfbrother\\go\\src\\database\\sql.Rows ---> github.com\\tfbrother\\go\\src\\database\\sql.driverStmt : closeStmt
+github.com\\tfbrother\\go\\src\\database\\sql.Row ---> github.com\\tfbrother\\go\\src\\database\\sql.Rows : rows
+github.com\\tfbrother\\go\\src\\database\\sql.Scanner <|- github.com\\tfbrother\\go\\src\\database\\sql.NullString
+github.com\\tfbrother\\go\\src\\database\\sql.Scanner <|- github.com\\tfbrother\\go\\src\\database\\sql.NullInt64
+github.com\\tfbrother\\go\\src\\database\\sql.Scanner <|- github.com\\tfbrother\\go\\src\\database\\sql.NullFloat64
+github.com\\tfbrother\\go\\src\\database\\sql.Scanner <|- github.com\\tfbrother\\go\\src\\database\\sql.NullBool
+github.com\\tfbrother\\go\\src\\database\\sql.finalCloser <|- github.com\\tfbrother\\go\\src\\database\\sql.driverConn
+github.com\\tfbrother\\go\\src\\database\\sql.finalCloser <|- github.com\\tfbrother\\go\\src\\database\\sql.Stmt
+github.com\\tfbrother\\go\\src\\database\\sql.stmtConnGrabber <|- github.com\\tfbrother\\go\\src\\database\\sql.Conn
+github.com\\tfbrother\\go\\src\\database\\sql.stmtConnGrabber <|- github.com\\tfbrother\\go\\src\\database\\sql.Tx
+github.com\\tfbrother\\go\\src\\database\\sql.Result <|- github.com\\tfbrother\\go\\src\\database\\sql.driverResult
+@enduml
