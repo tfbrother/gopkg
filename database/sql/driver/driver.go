@@ -364,6 +364,7 @@ type ColumnConverter interface {
 }
 
 // Rows is an iterator over an executed query's results.
+// TODO 类似C++中迭代器的思想，非常重要。
 type Rows interface {
 	// Columns returns the names of the columns. The number of
 	// columns of the result is inferred from the length of the
