@@ -83,6 +83,7 @@ func (b *Reader) reset(buf []byte, r io.Reader) {
 var errNegativeRead = errors.New("bufio: reader returned negative count from Read")
 
 // fill reads a new chunk into the buffer.
+// 当缓冲区里面没有足够内容（或者为空）时，调用该函数，从rd中读取新内容加载入缓冲区。
 func (b *Reader) fill() {
 	// Slide existing data to beginning.
 	if b.r > 0 {
@@ -189,6 +190,11 @@ func (b *Reader) Discard(n int) (discarded int, err error) {
 // At EOF, the count will be zero and err will be io.EOF.
 //
 // To read exactly len(p) bytes, use io.ReadFull(b, p).
+// 思路如下：
+// 当缓存区有内容的时，将缓存区内容全部填入p并清空缓存区
+// 当缓存区没有内容的时候且len(p)>len(buf),即要读取的内容比缓存区还要大，直接去文件读取即可
+// 当缓存区没有内容的时候且len(p)<len(buf),即要读取的内容比缓存区小，缓存区从文件读取内容充满缓存区，并将p填满（此时缓存区有剩余内容）
+// 以后再次读取时缓存区有内容，将缓存区内容全部填入p并清空缓存区（此时和情况1一样）
 func (b *Reader) Read(p []byte) (n int, err error) {
 	n = len(p)
 	if n == 0 {
@@ -280,6 +286,7 @@ func (b *Reader) ReadRune() (r rune, size int, err error) {
 	}
 	r, size = rune(b.buf[b.r]), 1
 	if r >= utf8.RuneSelf {
+		// 解码 p 中的第一个字符，返回解码后的字符和 p 中被解码的字节数(因为unicode是变长的)
 		r, size = utf8.DecodeRune(b.buf[b.r:b.w])
 	}
 	b.r += size
