@@ -22,7 +22,7 @@ var (
 	ErrInvalidUnreadByte = errors.New("bufio: invalid use of UnreadByte")
 	ErrInvalidUnreadRune = errors.New("bufio: invalid use of UnreadRune")
 	ErrBufferFull        = errors.New("bufio: buffer full")
-	ErrNegativeCount     = errors.New("bufio: negative count")
+	ErrNegativeCount     = errors.New("bufio: negative count") // negative 负数
 )
 
 // Buffered input.
@@ -33,8 +33,8 @@ type Reader struct {
 	rd           io.Reader // reader provided by the client
 	r, w         int       // buf read and write positions
 	err          error
-	lastByte     int
-	lastRuneSize int
+	lastByte     int // last byte read for UnreadByte; -1 means invalid
+	lastRuneSize int // size of last rune read for UnreadRune; -1 means invalid
 }
 
 const minReadBufferSize = 16
@@ -53,6 +53,7 @@ func NewReaderSize(rd io.Reader, size int) *Reader {
 		size = minReadBufferSize
 	}
 	r := new(Reader)
+	// TODO 为何这么设计？详见：https://github.com/golang/go/issues/6086
 	r.reset(make([]byte, size), rd)
 	return r
 }
@@ -72,6 +73,13 @@ func (b *Reader) Reset(r io.Reader) {
 }
 
 func (b *Reader) reset(buf []byte, r io.Reader) {
+	// TODO 只改变指针指向的内容，指针并没有变化。
+	// 为何不用：
+	// b.buf = buf
+	// b.rd = r
+	// b.lastByte = -1
+	// b.lastRuneSize = -1
+	// 详见：https://github.com/golang/go/issues/6086
 	*b = Reader{
 		buf:          buf,
 		rd:           r,
@@ -87,6 +95,7 @@ var errNegativeRead = errors.New("bufio: reader returned negative count from Rea
 func (b *Reader) fill() {
 	// Slide existing data to beginning.
 	if b.r > 0 {
+		// 把未读完的数据移动到缓冲区头部去
 		copy(b.buf, b.buf[b.r:b.w])
 		b.w -= b.r
 		b.r = 0
@@ -97,6 +106,7 @@ func (b *Reader) fill() {
 	}
 
 	// Read new data: try a limited number of times.
+	// 最多尝试100次从reader中读取数据到缓存区。
 	for i := maxConsecutiveEmptyReads; i > 0; i-- {
 		n, err := b.rd.Read(b.buf[b.w:])
 		if n < 0 {
@@ -114,6 +124,7 @@ func (b *Reader) fill() {
 	b.err = io.ErrNoProgress
 }
 
+// TODO 为何读取后会重置为nil
 func (b *Reader) readErr() error {
 	err := b.err
 	b.err = nil
@@ -124,11 +135,15 @@ func (b *Reader) readErr() error {
 // being valid at the next read call. If Peek returns fewer than n bytes, it
 // also returns an error explaining why the read is short. The error is
 // ErrBufferFull if n is larger than b's buffer size.
+// Calling Peek prevents a UnreadByte or UnreadRune call from succeeding
+// until the next read operation.
+// 窥视缓冲区中前n个字节的数据，不会涉及到更改缓冲区的r偏移。
 func (b *Reader) Peek(n int) ([]byte, error) {
 	if n < 0 {
 		return nil, ErrNegativeCount
 	}
 
+	// 当且仅当缓冲区中可用的数据小于n并且缓冲区没有满和错误的时候，才进行fill()操作
 	for b.w-b.r < n && b.w-b.r < len(b.buf) && b.err == nil {
 		b.fill() // b.w-b.r < len(b.buf) => buffer is not full
 	}
@@ -150,11 +165,14 @@ func (b *Reader) Peek(n int) ([]byte, error) {
 	return b.buf[b.r : b.r+n], err
 }
 
-// Discard skips the next n bytes, returning the number of bytes discarded.
+// Discard(放弃，抛弃) skips the next n bytes, returning the number of bytes discarded.
 //
 // If Discard skips fewer than n bytes, it also returns an error.
 // If 0 <= n <= b.Buffered(), Discard is guaranteed to succeed without
 // reading from the underlying io.Reader.
+// 废弃掉接下来的n个字节，和Peek是配套使用的。
+// TODO 为何需要设计这个方法，see：https://github.com/golang/go/commit/ee2ecc4552d8fd2b29be29aed1fe81dca0df60f9
+// Reader.Discard is the complement to Peek. It discards the next n bytes of input.
 func (b *Reader) Discard(n int) (discarded int, err error) {
 	if n < 0 {
 		return 0, ErrNegativeCount
@@ -256,6 +274,11 @@ func (b *Reader) ReadByte() (byte, error) {
 }
 
 // UnreadByte unreads the last byte. Only the most recently read byte can be unread.
+//
+// UnreadByte returns an error if the most recent method called on the
+// Reader was not a read operation. Notably, Peek is not considered a
+// read operation.
+// 将最后一个已读的字节重置为未读的。只有最后一次对reader的操作是读取字节，才能进行重置为未读操作。
 func (b *Reader) UnreadByte() error {
 	if b.lastByte < 0 || b.r == 0 && b.w > 0 {
 		return ErrInvalidUnreadByte
@@ -267,6 +290,7 @@ func (b *Reader) UnreadByte() error {
 		// b.r == 0 && b.w == 0
 		b.w = 1
 	}
+	// TODO 为何会修改b.r的值呢？
 	b.buf[b.r] = byte(b.lastByte)
 	b.lastByte = -1
 	b.lastRuneSize = -1
@@ -295,8 +319,8 @@ func (b *Reader) ReadRune() (r rune, size int, err error) {
 	return r, size, nil
 }
 
-// UnreadRune unreads the last rune. If the most recent read operation on
-// the buffer was not a ReadRune, UnreadRune returns an error.  (In this
+// UnreadRune unreads the last rune. If the most recent method called on
+// the Reader was not a ReadRune, UnreadRune returns an error.  (In this
 // regard it is stricter than UnreadByte, which will unread the last byte
 // from any read operation.)
 func (b *Reader) UnreadRune() error {
@@ -310,6 +334,7 @@ func (b *Reader) UnreadRune() error {
 }
 
 // Buffered returns the number of bytes that can be read from the current buffer.
+// 返回缓冲区里面的可用数据大小
 func (b *Reader) Buffered() int { return b.w - b.r }
 
 // ReadSlice reads until the first occurrence of delim in the input,
